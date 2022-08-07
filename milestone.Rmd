@@ -1,0 +1,213 @@
+---
+title: "milestonne"
+author: "Diana Garcia"
+date: "2022-08-05"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Introduction
+
+The goal of this report is to demonstrate that I have got used to working with the text data and that I am on the path to create my prediction algorithm for the final deliverable of the Capstone project. For that, differents steps to follow have been stablished;
+
+1. The first step in analyzing any new data set is figuring out: (a) what data you have and (b) what are the standard tools and models used for that type of data.
+
+2. Large databases comprising of text in a target language are commonly used when generating language models for various purposes. In this exercise, you will use the English database but may consider three other databases in German, Russian and Finnish. The goal of this task is to get familiar with the databases and do the necessary cleaning by: Tokenization - identifying appropriate tokens such as words, punctuation, and numbers. Writing a function that takes a file as input and returns a tokenized version of it. And Profanity filtering - removing profanity and other words you do not want to predict. 
+
+3. The first step in building a predictive model for text is understanding the distribution and relationship between the words, tokens, and phrases in the text. The goal of this task is to understand the basic relationships you observe in the data and prepare to build your first linguistic model for the relationship between words. 
+
+## Downloading the data
+
+Here, I download and store the data for the project. I also download a file of bad words in English which will be used for cleaning the text corpus later on.
+
+```{r, warning=FALSE}
+if(!file.exists("./Capstone Project")){
+  dir.create("./Capstone Project")
+}
+Url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+ 
+if(!file.exists("./Capstone Project/Coursera-SwiftKey.zip")){
+  download.file(Url,destfile="./Capstone Project/Coursera-SwiftKey.zip",mode = "wb")
+}
+
+if(!file.exists("./Capstone Project/final")){
+  unzip(zipfile="./Capstone Project/Coursera-SwiftKey.zip",exdir="./Capstone Project")
+}
+
+setwd("./Capstone Project/final/en_US")
+
+if(!file.exists("full-list-of-bad-words_text-file_2022_05_05.zip")){
+  download.file("https://www.freewebheaders.com/full-list-of-bad-words-banned-by-google/#google_vignette",destfile="full-list-of-bad-words_text-file_2022_05_05.zip",mode = "wb")
+}
+
+if(!file.exists("full-list-of-bad-words_text-file_2022_05_05.txt")){
+  unzip(zipfile="full-list-of-bad-words_text-file_2022_05_05.zip")
+}
+```
+
+## Reading the text file 
+
+The text files are read into variables.
+
+```{r, warning=FALSE}
+twitterdata<-readLines("en_US.twitter.txt",warn=FALSE,encoding="UTF-8")
+blogsdata<-readLines("en_US.blogs.txt",warn=FALSE,encoding="UTF-8")
+newsdata<-readLines("en_US.news.txt",warn=FALSE,encoding="UTF-8")
+```
+
+## Display summary statistics of the text data
+
+Here, I write code to display summary statistics of the data.
+
+```{r, warning=FALSE}
+library(stringi)
+length(twitterdata)
+```
+
+```{r, warning=FALSE}
+length(blogsdata)
+```
+
+```{r, warning=FALSE}
+length(newsdata)
+```
+
+```{r, warning=FALSE}
+
+twitterdata_words <-stri_stats_latex(twitterdata)[4]
+blogsdata_words <-stri_stats_latex(blogsdata)[4]
+newsdata_words <-stri_stats_latex(newsdata)[4]
+nchar_twitter<-sum(nchar(twitterdata))
+nchar_blogs<-sum(nchar(blogsdata))
+nchar_news<-sum(nchar(newsdata))
+
+data.frame("File Name" = c("twitter", "blogs", "news"),
+           "num.lines" = c(length(twitterdata),length(blogsdata), length(newsdata)),
+           "num.words" = c(sum(blogsdata_words), sum(newsdata_words), sum(twitterdata_words)),
+           "Num of character"=c(nchar_blogs,nchar_news,nchar_twitter))
+```
+## Exploratory data analysis
+
+Here, I write code to perform exploratory analysis on the data, create n grams and show word clouds.For this analysis, we take a sample of the data using binomial distribution for sampling from the text data. The text data is cleaned and preprocessed using tm_map function. Bad words are removed from the text corpus using a file of bad words downloaded from https://www.freewebheaders.com.
+
+```{r, warning=FALSE}
+
+set.seed(1234)
+blogs_c<-iconv(blogsdata,"latin1","ASCII",sub="")
+news_c<-iconv(newsdata,"latin1","ASCII",sub="")
+twitter_c<-iconv(twitterdata,"latin1","ASCII",sub="")
+
+set.seed(2000)
+
+data_sample_binomial<-c(twitter_c[rbinom(length(twitter_c)*.01, length(twitter_c), .5)],
+              news_c[rbinom(length(news_c)*.01, length(news_c), .5)],
+              blogs_c[rbinom(length(blogs_c)*.01, length(blogs_c), .5)])
+
+library(tm)
+```
+
+```{r, warning=FALSE}
+library(NLP)
+
+#preprocessing the data
+
+corpus <- VCorpus(VectorSource(data_sample_binomial))
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+corpus <- tm_map(corpus, toSpace, "(f|ht)tp(s?)://(.*)[.][a-z]+")
+corpus <- tm_map(corpus, toSpace, "@[^\\s]+")
+corpus <- tm_map(corpus, tolower)
+corpus <- tm_map(corpus, removeWords, stopwords("en"))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, PlainTextDocument)
+
+#removing bad words from the text data
+
+profanewords <- read.table("full-list-of-bad-words_text-file_2022_05_05.txt", fill = TRUE)
+corpus <- tm_map(corpus, removeWords, profanewords$V1)
+
+removeNumPunct <- function(x) gsub("[^[:alpha:][:space:]]*", "", x)
+corpus <- tm_map(corpus, content_transformer(removeNumPunct))
+
+
+
+corpusresult<-data.frame(text=unlist(sapply(corpus,'[',"content")),stringsAsFactors = FALSE)
+head(corpusresult)
+saveRDS(corpusresult, file = "./corpus.RDS")
+```
+
+
+```{r, warning=FALSE}
+library(wordcloud)
+wordcloud(corpus, max.words=50, random.order = 0, random.color = 1,colors=brewer.pal(8, "Accent"))
+```
+
+```{r, warning=FALSE}
+library(RWeka)
+library(RWekajars)
+library(ggplot2)
+
+unigram<-function(x) NGramTokenizer(x,Weka_control(min=1,max=1))
+unigramtab<-TermDocumentMatrix(corpus,control=list(tokenize=unigram))
+
+unigramcorpus<-findFreqTerms(unigramtab,lowfreq=1200)
+unigramcorpusnum<-rowSums(as.matrix(unigramtab[unigramcorpus,]))
+unigramcorpustab<-data.frame(Word=names(unigramcorpusnum),frequency=unigramcorpusnum)
+unigramcorpussort<-unigramcorpustab[order(-unigramcorpustab$frequency),]
+
+wordcloud(unigramcorpussort$Word, unigramcorpussort$frequency,  max.words = 100, random.order = 0, scale = c(5,1), colors=brewer.pal(8, "Accent"))
+```
+
+```{r, warning=FALSE}
+
+ggplot(unigramcorpussort[1:20,],aes(x=reorder(Word,-frequency),y=frequency))+
+  geom_histogram(stat="identity",fill = I("black"))+
+  labs(title="Unigrams",x="Words",y="Occurrences")+
+  theme(axis.text.x=element_text(angle=60))
+```
+
+```{r, warning=FALSE}
+
+bigram<-function(x) NGramTokenizer(x,Weka_control(min=2,max=2))
+bigramtab<-TermDocumentMatrix(corpus,control=list(tokenize=bigram))
+bigramcorpus<-findFreqTerms(bigramtab,lowfreq=100)
+bigramcorpusnum<-rowSums(as.matrix(bigramtab[bigramcorpus,]))
+bigramcorpustab<-data.frame(Word=names(bigramcorpusnum),frequency=bigramcorpusnum)
+bigramcorpussort<-bigramcorpustab[order(-bigramcorpustab$frequency),]
+
+wordcloud(bigramcorpussort$Word, bigramcorpussort$frequency,  max.words = 100, random.order = 0, scale = c(2,1), colors=brewer.pal(8, "Accent"))
+```
+
+```{r, warning=FALSE}
+
+ggplot(bigramcorpussort[1:10,],aes(x=reorder(Word,-frequency),y=frequency))+
+  geom_histogram(stat="identity",fill = I("black"))+
+  labs(title="Bigrams",x="Words",y="Occurrences")+
+  theme(axis.text.x=element_text(angle=45))
+```
+
+```{r, warning=FALSE}
+
+trigram<-function(x) NGramTokenizer(x,Weka_control(min=3,max=3))
+trigramtab<-TermDocumentMatrix(corpus,control=list(tokenize=trigram))
+trigramcorpus<-findFreqTerms(trigramtab,lowfreq=12)
+trigramcorpusnum<-rowSums(as.matrix(trigramtab[trigramcorpus,]))
+trigramcorpustab<-data.frame(Word=names(trigramcorpusnum),frequency=trigramcorpusnum)
+trigramcorpussort<-trigramcorpustab[order(-trigramcorpustab$frequency),]
+
+wordcloud(trigramcorpussort$Word, trigramcorpussort$frequency,  max.words = 20, random.order = 0, scale = c(1.5,0.5), colors=brewer.pal(8, "Accent"))
+```
+
+```{r, warning=FALSE}
+ggplot(trigramcorpussort[1:15,],aes(x=reorder(Word,-frequency),y=frequency))+
+  geom_histogram(stat="identity",fill = I("black"))+
+  labs(title="Trigrams",x="Words",y="Occurrences")+
+  theme(axis.text.x=element_text(angle=25))
+```
+
+## Conclusion and future perspectives
+
+The exploratory analysis has been completed and now, we know the frequently occurring single words (unigrams), two word combinations (bigrams) and three word combinations (trigrams). Next, we will plan to build our predictive algorithim for the Shiny app by using n-gram based model wherein user will input a set of words and the algorithm will predict the next word.
+

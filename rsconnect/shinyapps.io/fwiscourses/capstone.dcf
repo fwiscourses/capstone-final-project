@@ -1,0 +1,11 @@
+name: capstone
+title:
+username:
+account: fwiscourses
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6750239
+bundleId: 6176476
+url: https://fwiscourses.shinyapps.io/capstone/
+when: 1659876521.2069
+lastSyncTime: 1659876521.2069
